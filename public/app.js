@@ -1,10 +1,28 @@
 const socket = io('/', { transports: ['websocket'] });
 const peerConnections = {}; // Map socket.id to RTCPeerConnection
+const participants = {}; // Map socket.id to username
 let localStream;
 let micStream = null;
 let myRole = null; // 'host' or 'viewer'
 let currentRoom = null;
 let viewerCount = 0;
+let myUsername = localStorage.getItem('username') || '';
+
+// --- PROFILE MODAL LOGIC ---
+if (!myUsername) {
+    document.getElementById('profile-modal').classList.remove('hidden');
+}
+
+document.getElementById('btn-save-profile').addEventListener('click', () => {
+    const input = document.getElementById('input-nickname').value.trim();
+    if (input) {
+        myUsername = input;
+        localStorage.setItem('username', myUsername);
+        document.getElementById('profile-modal').classList.add('hidden');
+    } else {
+        alert("Please enter a nickname.");
+    }
+});
 
 // STUN/TURN servers to resolve public IPs and relay traffic across strict NATs
 const rtcConfig = {
@@ -70,6 +88,7 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
         try {
             micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
             document.getElementById('btn-toggle-mic').classList.remove('hidden');
+            startVAD(micStream);
         } catch (e) {
             console.warn("Microfone não autorizado ou não encontrado.", e);
         }
@@ -93,7 +112,11 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
         displayRoomId.textContent = currentRoom;
 
         updateStatus('connected', 'Broadcasting (0 viewers)');
-        socket.emit('join-room', currentRoom, myRole);
+        
+        // Add self to participants list
+        addParticipant('local', myUsername + ' (You)');
+        
+        socket.emit('join-room', currentRoom, myRole, myUsername);
 
         localStream.getVideoTracks()[0].onended = () => {
             leaveRoom();
@@ -123,11 +146,15 @@ document.getElementById('btn-join-room').addEventListener('click', async () => {
         localStream = new MediaStream();
         micStream.getTracks().forEach(track => localStream.addTrack(track));
         document.getElementById('btn-toggle-mic').classList.remove('hidden');
+        startVAD(micStream);
     } catch (e) {
         console.warn("Microfone não autorizado ou não encontrado. Entrando apenas para assistir.", e);
     }
 
-    socket.emit('join-room', currentRoom, myRole);
+    // Add self to participants list
+    addParticipant('local', myUsername + ' (You)');
+
+    socket.emit('join-room', currentRoom, myRole, myUsername);
 });
 
 // ---- MESH SIGNALING LOGIC ----
@@ -159,7 +186,14 @@ function setupRemoteTracks(peerConnection, remoteRole, remoteId) {
 }
 
 // Quando qualquer pessoa entra na sala, quem já está lá manda uma Oferta
-socket.on('user-joined', async (userId, userRole) => {
+socket.on('user-joined', async (userId, userRole, username) => {
+    // Add to participants list
+    participants[userId] = username || 'Anonymous';
+    addParticipant(userId, participants[userId]);
+    
+    // Sync my profile back to them
+    socket.emit('sync-profile', userId, myUsername);
+
     // Se eu sou host e entrou um viewer, atualiza contador
     if (myRole === 'host' && userRole === 'viewer') {
         viewerCount++;
@@ -242,6 +276,9 @@ socket.on('ice-candidate', async (candidate, senderId) => {
 
 // Handle User Disconnection
 socket.on('user-disconnected', (userId) => {
+    removeParticipant(userId);
+    if (participants[userId]) delete participants[userId];
+
     if (peerConnections[userId]) {
         peerConnections[userId].close();
         delete peerConnections[userId];
@@ -258,6 +295,50 @@ socket.on('user-disconnected', (userId) => {
         videoPlaceholder.classList.remove('hidden');
     }
 });
+
+// Sync Profile from existing users
+socket.on('sync-profile', (userId, username) => {
+    participants[userId] = username || 'Anonymous';
+    addParticipant(userId, participants[userId]);
+});
+
+// UI Logic for Participants
+function addParticipant(id, name) {
+    const list = document.getElementById('participants-list');
+    if (document.getElementById(`participant-${id}`)) return; // Already exists
+
+    const li = document.createElement('li');
+    li.id = `participant-${id}`;
+    li.className = 'participant-item';
+    li.innerHTML = `
+        <div class="participant-avatar">${name.charAt(0).toUpperCase()}</div>
+        <div class="participant-name">${name}</div>
+    `;
+    list.appendChild(li);
+    document.getElementById('participant-count').textContent = list.children.length;
+}
+
+function removeParticipant(id) {
+    const item = document.getElementById(`participant-${id}`);
+    if (item) {
+        item.remove();
+        document.getElementById('participant-count').textContent = document.getElementById('participants-list').children.length;
+    }
+}
+
+function updateSpeakingState(id, isSpeaking) {
+    const item = document.getElementById(`participant-${id}`);
+    if (item) {
+        if (isSpeaking) {
+            item.classList.add('is-speaking');
+        } else {
+            item.classList.remove('is-speaking');
+        }
+    }
+}
+
+socket.on('speaking-start', (userId) => updateSpeakingState(userId, true));
+socket.on('speaking-stop', (userId) => updateSpeakingState(userId, false));
 
 function leaveRoom() {
     window.location.reload();
@@ -344,11 +425,60 @@ document.getElementById('btn-toggle-mic').addEventListener('click', () => {
     if (isMuted) {
         btn.textContent = 'Desmutar';
         btn.classList.replace('primary', 'danger');
+        socket.emit('speaking-stop', currentRoom);
+        updateSpeakingState('local', false);
+        wasSpeaking = false;
     } else {
         btn.textContent = 'Mutar';
         btn.classList.replace('danger', 'primary');
     }
 });
+
+// --- VOICE ACTIVITY DETECTION (VAD) ---
+let audioContext, analyser, microphone, scriptProcessor;
+let wasSpeaking = false;
+
+function startVAD(stream) {
+    if (audioContext) return; // Ja iniciado
+    
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioContext.createAnalyser();
+    microphone = audioContext.createMediaStreamSource(stream);
+    scriptProcessor = audioContext.createScriptProcessor(2048, 1, 1);
+
+    analyser.smoothingTimeConstant = 0.8;
+    analyser.fftSize = 1024;
+
+    microphone.connect(analyser);
+    analyser.connect(scriptProcessor);
+    scriptProcessor.connect(audioContext.destination);
+
+    scriptProcessor.onaudioprocess = function() {
+        if (isMuted) return; // Não detecta voz se mutado
+
+        const array = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(array);
+        
+        let sum = 0;
+        for (let i = 0; i < array.length; i++) {
+            sum += array[i];
+        }
+        const average = sum / array.length;
+
+        // Limite de detecção de volume (ajuste conforme necessário, ex: 15)
+        const isSpeakingNow = average > 15;
+
+        if (isSpeakingNow && !wasSpeaking) {
+            wasSpeaking = true;
+            socket.emit('speaking-start', currentRoom);
+            updateSpeakingState('local', true); // Acende pra mim mesmo
+        } else if (!isSpeakingNow && wasSpeaking) {
+            wasSpeaking = false;
+            socket.emit('speaking-stop', currentRoom);
+            updateSpeakingState('local', false); // Apaga pra mim mesmo
+        }
+    };
+}
 
 // --- AUTO-JOIN LOGIC VIA URL PARAMS ---
 window.addEventListener('DOMContentLoaded', () => {

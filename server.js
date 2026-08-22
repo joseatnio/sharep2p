@@ -18,12 +18,12 @@ app.use(express.static(path.join(__dirname, 'public')));
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
 
-    socket.on('join-room', (roomId, role) => {
+    socket.on('join-room', (roomId, role, username) => {
         socket.join(roomId);
-        console.log(`Socket ${socket.id} joined room ${roomId} as ${role}`);
+        console.log(`Socket ${socket.id} (${username}) joined room ${roomId} as ${role}`);
 
         // Notify everyone else in the room that a new user arrived
-        socket.to(roomId).emit('user-joined', socket.id, role);
+        socket.to(roomId).emit('user-joined', socket.id, role, username);
 
         socket.on('disconnect', () => {
             console.log('User disconnected:', socket.id);
@@ -48,6 +48,20 @@ io.on('connection', (socket) => {
         } else {
              socket.to(roomId).emit('ice-candidate', candidate, socket.id);
         }
+    });
+
+    // Profile Synchronization
+    socket.on('sync-profile', (targetId, username) => {
+        socket.to(targetId).emit('sync-profile', socket.id, username);
+    });
+
+    // Voice Activity Detection
+    socket.on('speaking-start', (roomId) => {
+        socket.to(roomId).emit('speaking-start', socket.id);
+    });
+
+    socket.on('speaking-stop', (roomId) => {
+        socket.to(roomId).emit('speaking-stop', socket.id);
     });
 });
 

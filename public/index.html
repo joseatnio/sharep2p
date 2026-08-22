@@ -8,6 +8,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <!-- PROFILE MODAL -->
+    <div id="profile-modal" class="modal-overlay hidden">
+        <div class="card modal-card">
+            <h2>Welcome to ShareScreen</h2>
+            <p>Please enter a nickname to join calls.</p>
+            <input type="text" id="input-nickname" placeholder="Your Nickname (e.g. John)" autocomplete="off">
+            <button id="btn-save-profile" class="btn primary">Save & Continue</button>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <h1>ShareScreen <span class="badge">P2P</span></h1>
@@ -49,6 +59,16 @@
             <div class="video-container">
                 <video id="screen-video" autoplay playsinline></video>
                 <div class="placeholder-text" id="video-placeholder">Waiting for stream...</div>
+                
+                <!-- PARTICIPANTS SIDEBAR -->
+                <div class="participants-sidebar">
+                    <div class="participants-header">
+                        <h3>Participantes (<span id="participant-count">0</span>)</h3>
+                    </div>
+                    <ul id="participants-list" class="participants-list">
+                        <!-- Users will be appended here -->
+                    </ul>
+                </div>
             </div>
         </section>
     </div>
