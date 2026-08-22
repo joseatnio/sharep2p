@@ -194,10 +194,13 @@ input[type="text"]:focus {
 
 /* Streaming Area */
 .streaming-area {
-    background: var(--card-bg);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
+    background: var(--bg-color);
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1000;
     display: flex;
     flex-direction: column;
 }
@@ -208,6 +211,7 @@ input[type="text"]:focus {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: var(--card-bg); /* Mantenha o cabeçalho visível */
 }
 
 .status-indicator {
@@ -236,7 +240,7 @@ input[type="text"]:focus {
 .video-container {
     position: relative;
     width: 100%;
-    aspect-ratio: 16 / 9;
+    flex: 1;
     background: #000;
     display: flex;
     justify-content: center;

@@ -23,6 +23,7 @@ const peerConnections = {}; // Map socket.id to RTCPeerConnection
 let localStream;
 let myRole = null; // 'host' or 'viewer'
 let currentRoom = null;
+let viewerCount = 0;
 
 // STUN/TURN servers to resolve public IPs and relay traffic across strict NATs
 const rtcConfig = {
@@ -95,7 +96,7 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
         document.getElementById('btn-change-screen').classList.remove('hidden');
         displayRoomId.textContent = currentRoom;
 
-        updateStatus('connected', 'Broadcasting (Waiting for viewers...)');
+        updateStatus('connected', 'Broadcasting (0 viewers)');
         socket.emit('join-room', currentRoom, myRole);
 
         localStream.getVideoTracks()[0].onended = () => {
@@ -149,7 +150,8 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
 socket.on('viewer-joined', async (viewerId) => {
     if (myRole !== 'host') return;
 
-    updateStatus('connected', 'Viewer connected!');
+    viewerCount++;
+    updateStatus('connected', `Broadcasting (${viewerCount} viewer${viewerCount !== 1 ? 's' : ''})`);
 
     const peerConnection = new RTCPeerConnection(rtcConfig);
     peerConnections[viewerId] = peerConnection;
@@ -228,6 +230,13 @@ socket.on('offer', async (offer, hostId) => {
     socket.emit('answer', currentRoom, answer, hostId);
 });
 
+// Viewer resends join request if the host joins AFTER them
+socket.on('host-joined', () => {
+    if (myRole === 'viewer') {
+        socket.emit('join-room', currentRoom, myRole);
+    }
+});
+
 // ---- COMMON LOGIC ----
 
 // Handle incoming ICE candidates
@@ -247,6 +256,11 @@ socket.on('user-disconnected', (userId) => {
     if (peerConnections[userId]) {
         peerConnections[userId].close();
         delete peerConnections[userId];
+        
+        if (myRole === 'host') {
+            viewerCount = Math.max(0, viewerCount - 1);
+            updateStatus('connected', `Broadcasting (${viewerCount} viewer${viewerCount !== 1 ? 's' : ''})`);
+        }
     }
 
     if (myRole === 'viewer') {
