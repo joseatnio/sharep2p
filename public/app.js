@@ -1,14 +1,18 @@
-import { DiscordSDK } from "https://esm.sh/@discord/embedded-app-sdk";
-
 // === DISCORD ACTIVITY SETUP ===
 const DISCORD_CLIENT_ID = '1534236568242360540';
 let discordSdk = null;
 
 async function initDiscord() {
     if (window.parent !== window) {
-        discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
-        await discordSdk.ready();
-        console.log("Discord SDK is ready!");
+        try {
+            console.log("Estamos no iframe do Discord. Tentando carregar o SDK...");
+            const module = await import("https://esm.sh/@discord/embedded-app-sdk");
+            discordSdk = new module.DiscordSDK(DISCORD_CLIENT_ID);
+            await discordSdk.ready();
+            console.log("Discord SDK is ready!");
+        } catch (e) {
+            console.error("Falha ao carregar Discord SDK:", e);
+        }
     }
 }
 initDiscord();
@@ -68,10 +72,30 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
 
         // BURLADOR DE RESTRIÇÃO DO DISCORD:
         // Se estivermos rodando dentro da Activity do Discord, mandamos o usuário pro navegador externo!
-        if (discordSdk) {
-            // Usa o link atual (que o Render gerou) + os parametros pra ele abrir como HOST lá fora
+        if (window.parent !== window) {
             const externalUrl = window.location.origin + '/?room=' + currentRoom + '&role=host';
-            await discordSdk.commands.openExternalLink({ url: externalUrl });
+            
+            try {
+                if (discordSdk) {
+                    await discordSdk.commands.openExternalLink({ url: externalUrl });
+                } else {
+                    // Fallback se o SDK falhar
+                    window.open(externalUrl, '_blank');
+                }
+            } catch(e) {
+                console.error("Falha ao abrir aba:", e);
+                // Último recurso: mostra o link pro usuário clicar/copiar
+                lobby.innerHTML = `
+                    <div class="card" style="text-align: center;">
+                        <h2>Abra no Navegador 🚀</h2>
+                        <p style="color: var(--text-secondary); margin-bottom: 20px;">O Discord bloqueou a abertura automática. Clique no link abaixo para compartilhar sua tela no navegador:</p>
+                        <a href="${externalUrl}" target="_blank" style="display: block; padding: 15px; background: #5865F2; color: white; text-decoration: none; border-radius: 8px; margin-bottom: 20px;">Abrir Navegador</a>
+                        <p>Diga para os seus amigos que estão no Discord digitarem o código abaixo para assistirem:</p>
+                        <div class="room-id" style="font-size: 2.5rem; letter-spacing: 5px; margin: 20px 0; user-select: all;">${currentRoom}</div>
+                    </div>
+                `;
+                return;
+            }
             
             // Atualiza a tela do Host dentro da Activity para avisar o que houve
             lobby.innerHTML = `
