@@ -1,27 +1,7 @@
-// === DISCORD ACTIVITY SETUP ===
-const DISCORD_CLIENT_ID = '1534236568242360540';
-let discordSdk = null;
-
-async function initDiscord() {
-    if (window.parent !== window) {
-        try {
-            console.log("Estamos no iframe do Discord. Tentando carregar o SDK...");
-            const module = await import("https://esm.sh/@discord/embedded-app-sdk");
-            discordSdk = new module.DiscordSDK(DISCORD_CLIENT_ID);
-            await discordSdk.ready();
-            console.log("Discord SDK is ready!");
-        } catch (e) {
-            console.error("Falha ao carregar Discord SDK:", e);
-        }
-    }
-}
-initDiscord();
-// ==============================
-
-// Força WebSockets para evitar problemas com o proxy do Discord que bloqueia long-polling
 const socket = io('/', { transports: ['websocket'] });
 const peerConnections = {}; // Map socket.id to RTCPeerConnection
 let localStream;
+let micStream = null;
 let myRole = null; // 'host' or 'viewer'
 let currentRoom = null;
 let viewerCount = 0;
@@ -72,8 +52,8 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
             currentRoom = generateRoomId();
         }
 
-        // Tenta iniciar o compartilhamento. Se o Discord bloquear, vai cair no 'catch' lá embaixo!
-        localStream = await navigator.mediaDevices.getDisplayMedia({
+        // Tenta iniciar o compartilhamento de tela
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
                 cursor: "always",
                 displaySurface: "browser"
@@ -85,6 +65,21 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
             },
             systemAudio: "exclude"
         });
+
+        // Tenta capturar o microfone também (opcional, se falhar continua só com tela)
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            document.getElementById('btn-toggle-mic').classList.remove('hidden');
+        } catch (e) {
+            console.warn("Microfone não autorizado ou não encontrado.", e);
+        }
+
+        // Combina tela e microfone no localStream
+        localStream = new MediaStream();
+        screenStream.getTracks().forEach(track => localStream.addTrack(track));
+        if (micStream) {
+            micStream.getTracks().forEach(track => localStream.addTrack(track));
+        }
 
         // Se conseguiu capturar a tela (ou seja, não foi bloqueado):
         myRole = 'host';
@@ -105,89 +100,13 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
         };
 
     } catch (err) {
-        console.warn("Screen capture blocked or cancelled. Bypassing...", err);
-        
-        // BURLADOR: Como a captura falhou, forçamos o pop-out para o navegador externo.
-        const externalUrl = window.location.origin + '/?room=' + currentRoom + '&role=host';
-        
-        try {
-            if (discordSdk) {
-                await discordSdk.commands.openExternalLink({ url: externalUrl });
-            } else {
-                window.open(externalUrl, '_blank');
-            }
-        } catch(e) { } // Falhas de abertura silenciosa, o botão manual salva
-        
-        // Mostra a tela final com o input para copiar o link
-        lobby.innerHTML = `
-            <div class="card" style="text-align: center;">
-                <h2>Quase lá! 🚀</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 20px;">O Discord bloqueou a abertura automática da aba. Para transmitir, <b>copie o link abaixo e cole no seu Chrome/Edge</b>:</p>
-                
-                <div style="display: flex; gap: 10px; margin-bottom: 25px;">
-                    <input type="text" id="copy-url" value="${externalUrl}" readonly style="flex: 1; padding: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-color); color: var(--text-main); font-size: 0.9rem;">
-                    <button id="btn-copy" class="btn btn-primary" style="padding: 0 20px;">Copiar</button>
-                </div>
-
-                <p>Seus amigos podem continuar assistindo por aqui! Diga a eles para digitarem o código abaixo:</p>
-                <div class="room-id" style="font-size: 2.5rem; letter-spacing: 5px; margin: 20px 0; user-select: all;">${currentRoom}</div>
-            </div>
-        `;
-
-        // Ativa o botão de copiar
-        setTimeout(() => {
-            document.getElementById('btn-copy').addEventListener('click', () => {
-                const input = document.getElementById('copy-url');
-                input.select();
-                document.execCommand('copy');
-                document.getElementById('btn-copy').textContent = 'Copiado!';
-                setTimeout(() => document.getElementById('btn-copy').textContent = 'Copiar', 2000);
-            });
-        }, 100);
+        console.warn("Screen capture cancelled or failed.", err);
+        alert("Falha ao capturar a tela ou ação cancelada.");
     }
 });
-
-// Host receives notification that a viewer joined
-socket.on('viewer-joined', async (viewerId) => {
-    if (myRole !== 'host') return;
-
-    viewerCount++;
-    updateStatus('connected', `Broadcasting (${viewerCount} viewer${viewerCount !== 1 ? 's' : ''})`);
-
-    const peerConnection = new RTCPeerConnection(rtcConfig);
-    peerConnections[viewerId] = peerConnection;
-
-    // Add local stream tracks to connection
-    localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-    });
-
-    // Send ICE candidates
-    peerConnection.onicecandidate = event => {
-        if (event.candidate) {
-            socket.emit('ice-candidate', currentRoom, event.candidate, viewerId);
-        }
-    };
-
-    // Create Offer
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-
-    socket.emit('offer', currentRoom, offer, viewerId);
-});
-
-// Host receives answer from viewer
-socket.on('answer', async (answer, viewerId) => {
-    if (myRole !== 'host') return;
-    const peerConnection = peerConnections[viewerId];
-    if (peerConnection) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    }
-});
-
 
 // ---- VIEWER LOGIC ----
-document.getElementById('btn-join-room').addEventListener('click', () => {
+document.getElementById('btn-join-room').addEventListener('click', async () => {
     const roomId = document.getElementById('input-room-id').value.trim().toUpperCase();
     if (!roomId) return alert('Enter a Room ID');
 
@@ -196,45 +115,114 @@ document.getElementById('btn-join-room').addEventListener('click', () => {
 
     lobby.classList.add('hidden');
     streamingArea.classList.remove('hidden');
-    updateStatus('warning', 'Connecting to host...');
+    updateStatus('warning', 'Connecting to room...');
+
+    // Tenta capturar o microfone para voz
+    try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        localStream = new MediaStream();
+        micStream.getTracks().forEach(track => localStream.addTrack(track));
+        document.getElementById('btn-toggle-mic').classList.remove('hidden');
+    } catch (e) {
+        console.warn("Microfone não autorizado ou não encontrado. Entrando apenas para assistir.", e);
+    }
 
     socket.emit('join-room', currentRoom, myRole);
 });
 
-// Viewer receives offer from host
-socket.on('offer', async (offer, hostId) => {
-    if (myRole !== 'viewer') return;
+// ---- MESH SIGNALING LOGIC ----
 
-    updateStatus('warning', 'Negotiating connection...');
+function setupRemoteTracks(peerConnection, remoteRole, remoteId) {
+    peerConnection.ontrack = event => {
+        const track = event.track;
+        if (track.kind === 'video' && remoteRole === 'host') {
+            screenVideo.srcObject = event.streams[0];
+            videoPlaceholder.classList.add('hidden');
+            if (myRole === 'viewer') {
+                updateStatus('connected', 'Receiving Stream');
+            }
+        } else if (track.kind === 'audio') {
+            // Play remote audio
+            let audioEl = document.getElementById(`audio-${remoteId}`);
+            if (!audioEl) {
+                audioEl = document.createElement('audio');
+                audioEl.id = `audio-${remoteId}`;
+                audioEl.autoplay = true;
+                document.body.appendChild(audioEl);
+            }
+            if (!audioEl.srcObject) {
+                audioEl.srcObject = new MediaStream();
+            }
+            audioEl.srcObject.addTrack(track);
+        }
+    };
+}
+
+// Quando qualquer pessoa entra na sala, quem já está lá manda uma Oferta
+socket.on('user-joined', async (userId, userRole) => {
+    // Se eu sou host e entrou um viewer, atualiza contador
+    if (myRole === 'host' && userRole === 'viewer') {
+        viewerCount++;
+        updateStatus('connected', `Broadcasting (${viewerCount} viewer${viewerCount !== 1 ? 's' : ''})`);
+    }
+
     const peerConnection = new RTCPeerConnection(rtcConfig);
-    peerConnections[hostId] = peerConnection;
+    peerConnections[userId] = peerConnection;
 
-    // Receive ICE candidates
+    setupRemoteTracks(peerConnection, userRole, userId);
+
+    if (localStream) {
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+    }
+
     peerConnection.onicecandidate = event => {
         if (event.candidate) {
-            socket.emit('ice-candidate', currentRoom, event.candidate, hostId);
+            socket.emit('ice-candidate', currentRoom, event.candidate, userId);
         }
     };
 
-    // Receive Video Stream
-    peerConnection.ontrack = event => {
-        screenVideo.srcObject = event.streams[0];
-        videoPlaceholder.classList.add('hidden');
-        updateStatus('connected', 'Receiving Stream');
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    socket.emit('offer', currentRoom, offer, userId, myRole);
+});
+
+// Quando eu acabei de entrar na sala, recebo Ofertas de quem já estava lá
+socket.on('offer', async (offer, senderId, senderRole) => {
+    if (myRole === 'viewer') {
+        updateStatus('warning', 'Negotiating connection...');
+    }
+
+    const peerConnection = new RTCPeerConnection(rtcConfig);
+    peerConnections[senderId] = peerConnection;
+
+    setupRemoteTracks(peerConnection, senderRole, senderId);
+
+    if (localStream) {
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+    }
+
+    peerConnection.onicecandidate = event => {
+        if (event.candidate) {
+            socket.emit('ice-candidate', currentRoom, event.candidate, senderId);
+        }
     };
 
-    // Set Remote & Create Answer
     await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
     const answer = await peerConnection.createAnswer();
     await peerConnection.setLocalDescription(answer);
 
-    socket.emit('answer', currentRoom, answer, hostId);
+    socket.emit('answer', currentRoom, answer, senderId);
 });
 
-// Viewer resends join request if the host joins AFTER them
-socket.on('host-joined', () => {
-    if (myRole === 'viewer') {
-        socket.emit('join-room', currentRoom, myRole);
+// Receber a Resposta da oferta que eu mandei
+socket.on('answer', async (answer, senderId) => {
+    const peerConnection = peerConnections[senderId];
+    if (peerConnection) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
     }
 });
 
@@ -310,26 +298,55 @@ document.getElementById('btn-change-screen').addEventListener('click', async () 
         for (const peerId in peerConnections) {
             const pc = peerConnections[peerId];
 
-            // Video
+            // Replace Video
             const videoSender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
             if (videoSender && newStream.getVideoTracks().length > 0) {
                 videoSender.replaceTrack(newStream.getVideoTracks()[0]);
             }
 
-            // Audio
-            const audioSender = pc.getSenders().find(s => s.track && s.track.kind === 'audio');
-            if (audioSender && newStream.getAudioTracks().length > 0) {
-                audioSender.replaceTrack(newStream.getAudioTracks()[0]);
-            }
+            // Para áudio, é complexo porque temos mic e system audio.
+            // Para não quebrar o mic, apenas paramos os tracks antigos da tela e dependemos da re-negociação no futuro se necessário.
+            // Por enquanto, atualiza apenas o vídeo para simplificar.
         }
 
-        // Stop the old capture
-        localStream.getTracks().forEach(track => track.stop());
-        localStream = newStream;
+        // Stop the old screen capture tracks (those not in micStream)
+        localStream.getTracks().forEach(track => {
+            if (!micStream || !micStream.getTracks().includes(track)) {
+                track.stop();
+            }
+        });
+
+        // Create new combined stream
+        localStream = new MediaStream();
+        newStream.getTracks().forEach(track => localStream.addTrack(track));
+        if (micStream) {
+            micStream.getTracks().forEach(track => localStream.addTrack(track));
+        }
+
         localStream.getVideoTracks()[0].onended = () => leaveRoom();
 
     } catch (err) {
         console.error("Cancelled screen change", err);
+    }
+});
+
+// --- MUTE LOGIC ---
+let isMuted = false;
+document.getElementById('btn-toggle-mic').addEventListener('click', () => {
+    if (!micStream) return;
+    
+    isMuted = !isMuted;
+    micStream.getAudioTracks().forEach(track => {
+        track.enabled = !isMuted;
+    });
+
+    const btn = document.getElementById('btn-toggle-mic');
+    if (isMuted) {
+        btn.textContent = 'Desmutar';
+        btn.classList.replace('primary', 'danger');
+    } else {
+        btn.textContent = 'Mutar';
+        btn.classList.replace('danger', 'primary');
     }
 });
 
