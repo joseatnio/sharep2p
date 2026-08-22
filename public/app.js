@@ -70,69 +70,25 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
             currentRoom = generateRoomId();
         }
 
-        // BURLADOR DE RESTRIÇÃO DO DISCORD:
-        // Se estivermos rodando dentro da Activity do Discord, mandamos o usuário pro navegador externo!
-        if (window.parent !== window) {
-            const externalUrl = window.location.origin + '/?room=' + currentRoom + '&role=host';
-            
-            try {
-                if (discordSdk) {
-                    await discordSdk.commands.openExternalLink({ url: externalUrl });
-                } else {
-                    // Fallback se o SDK falhar
-                    window.open(externalUrl, '_blank');
-                }
-            } catch(e) {
-                console.error("Falha ao abrir aba:", e);
-                // Último recurso: mostra o link pro usuário clicar/copiar
-                lobby.innerHTML = `
-                    <div class="card" style="text-align: center;">
-                        <h2>Abra no Navegador 🚀</h2>
-                        <p style="color: var(--text-secondary); margin-bottom: 20px;">O Discord bloqueou a abertura automática. Clique no link abaixo para compartilhar sua tela no navegador:</p>
-                        <a href="${externalUrl}" target="_blank" style="display: block; padding: 15px; background: #5865F2; color: white; text-decoration: none; border-radius: 8px; margin-bottom: 20px;">Abrir Navegador</a>
-                        <p>Diga para os seus amigos que estão no Discord digitarem o código abaixo para assistirem:</p>
-                        <div class="room-id" style="font-size: 2.5rem; letter-spacing: 5px; margin: 20px 0; user-select: all;">${currentRoom}</div>
-                    </div>
-                `;
-                return;
-            }
-            
-            // Atualiza a tela do Host dentro da Activity para avisar o que houve
-            lobby.innerHTML = `
-                <div class="card" style="text-align: center;">
-                    <h2>Transmissão Enviada pro Navegador! 🚀</h2>
-                    <p style="color: var(--text-secondary); margin-bottom: 20px;">Você foi redirecionado para o Chrome/Edge para conseguir compartilhar a tela sem bloqueios.</p>
-                    <p>Diga para os seus amigos que estão no Discord digitarem o código abaixo para assistirem:</p>
-                    <div class="room-id" style="font-size: 2.5rem; letter-spacing: 5px; margin: 20px 0; user-select: all;">${currentRoom}</div>
-                </div>
-            `;
-            return; // Interrompe aqui, a transmissão vai ocorrer lá no navegador
-        }
-
-        // Se NÃO estiver no Discord (ou seja, ele já está no navegador externo da Opção 1 ou do Pop-out), prossegue normal:
-        
-        // Request Screen Share
+        // Tenta iniciar o compartilhamento. Se o Discord bloquear, vai cair no 'catch' lá embaixo!
         localStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
                 cursor: "always",
-                displaySurface: "browser" // Pede pro navegador focar em compartilhar Guias
+                displaySurface: "browser"
             },
             audio: {
                 echoCancellation: false,
                 noiseSuppression: false,
                 sampleRate: 44100
             },
-            systemAudio: "exclude" // Diz ao navegador para evitar áudio do sistema (para não pegar o Discord)
+            systemAudio: "exclude"
         });
 
-        // UI Updates
+        // Se conseguiu capturar a tela (ou seja, não foi bloqueado):
         myRole = 'host';
-
-        // Show video locally for host
         screenVideo.srcObject = localStream;
-        screenVideo.muted = true; // Mute locally to prevent echo/feedback
+        screenVideo.muted = true; 
         videoPlaceholder.classList.add('hidden');
-
         lobby.classList.add('hidden');
         streamingArea.classList.remove('hidden');
         activeRoomInfo.classList.remove('hidden');
@@ -140,18 +96,36 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
         displayRoomId.textContent = currentRoom;
 
         updateStatus('connected', 'Broadcasting (Waiting for viewers...)');
-
-        // Join Room
         socket.emit('join-room', currentRoom, myRole);
 
-        // If host stops sharing from browser UI
         localStream.getVideoTracks()[0].onended = () => {
             leaveRoom();
         };
 
     } catch (err) {
-        console.error("Error sharing screen: ", err);
-        alert("Failed to capture screen.");
+        console.warn("Screen capture blocked or cancelled. Bypassing...", err);
+        
+        // BURLADOR: Como a captura falhou, forçamos o pop-out para o navegador externo.
+        const externalUrl = window.location.origin + '/?room=' + currentRoom + '&role=host';
+        
+        try {
+            if (discordSdk) {
+                await discordSdk.commands.openExternalLink({ url: externalUrl });
+            } else {
+                window.open(externalUrl, '_blank');
+            }
+        } catch(e) { } // Falhas de abertura silenciosa, o botão manual salva
+        
+        // Mostra a tela final com o botão clicável para o navegador
+        lobby.innerHTML = `
+            <div class="card" style="text-align: center;">
+                <h2>Transmissão via Navegador 🚀</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">O Discord bloqueia captura de tela aqui dentro. Clique no botão abaixo para abrir a sala no seu Chrome/Edge e transmitir de lá:</p>
+                <a href="${externalUrl}" target="_blank" style="display: block; padding: 15px; background: #5865F2; color: white; text-decoration: none; border-radius: 8px; margin-bottom: 20px; font-weight: bold; font-size: 1.1rem;">🌍 Abrir Transmissão no Navegador</a>
+                <p>Seus amigos podem continuar assistindo por aqui! Diga a eles para digitarem o código abaixo:</p>
+                <div class="room-id" style="font-size: 2.5rem; letter-spacing: 5px; margin: 20px 0; user-select: all;">${currentRoom}</div>
+            </div>
+        `;
     }
 });
 
