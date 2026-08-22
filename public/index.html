@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Screen Share</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>ShareScreen <span class="badge">P2P</span></h1>
+            <p>Direct peer-to-peer screen sharing.</p>
+        </header>
+
+        <main id="lobby" class="lobby-screen">
+            <div class="card create-card">
+                <h2>Share your Screen</h2>
+                <p>Create a secure room to broadcast your screen to friends.</p>
+                <button id="btn-create-room" class="btn primary">Start Sharing</button>
+            </div>
+
+            <div class="card join-card">
+                <h2>Watch a Screen</h2>
+                <p>Join an existing room using a Room ID.</p>
+                <input type="text" id="input-room-id" placeholder="Enter Room ID" autocomplete="off">
+                <button id="btn-join-room" class="btn secondary">Join Room</button>
+            </div>
+        </main>
+
+        <section id="streaming-area" class="streaming-area hidden">
+            <div class="video-header">
+                <div class="status-indicator">
+                    <span class="dot"></span> <span id="connection-status">Connecting...</span>
+                </div>
+                <div id="active-room-info" class="copy-box hidden">
+                    <code id="header-room-id">...</code>
+                    <button id="btn-copy" class="btn small">Copy</button>
+                </div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button id="btn-change-screen" class="btn primary small hidden">Change Screen</button>
+                    <button id="btn-fullscreen" class="btn secondary small">Fullscreen</button>
+                    <button id="btn-leave" class="btn danger small">Leave</button>
+                </div>
+            </div>
+            
+            <div class="video-container">
+                <video id="screen-video" autoplay playsinline></video>
+                <div class="placeholder-text" id="video-placeholder">Waiting for stream...</div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
