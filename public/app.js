@@ -116,16 +116,32 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
             }
         } catch(e) { } // Falhas de abertura silenciosa, o botão manual salva
         
-        // Mostra a tela final com o botão clicável para o navegador
+        // Mostra a tela final com o input para copiar o link
         lobby.innerHTML = `
             <div class="card" style="text-align: center;">
-                <h2>Transmissão via Navegador 🚀</h2>
-                <p style="color: var(--text-secondary); margin-bottom: 20px;">O Discord bloqueia captura de tela aqui dentro. Clique no botão abaixo para abrir a sala no seu Chrome/Edge e transmitir de lá:</p>
-                <a href="${externalUrl}" target="_blank" style="display: block; padding: 15px; background: #5865F2; color: white; text-decoration: none; border-radius: 8px; margin-bottom: 20px; font-weight: bold; font-size: 1.1rem;">🌍 Abrir Transmissão no Navegador</a>
+                <h2>Quase lá! 🚀</h2>
+                <p style="color: var(--text-secondary); margin-bottom: 20px;">O Discord bloqueou a abertura automática da aba. Para transmitir, <b>copie o link abaixo e cole no seu Chrome/Edge</b>:</p>
+                
+                <div style="display: flex; gap: 10px; margin-bottom: 25px;">
+                    <input type="text" id="copy-url" value="${externalUrl}" readonly style="flex: 1; padding: 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg-color); color: var(--text-main); font-size: 0.9rem;">
+                    <button id="btn-copy" class="btn btn-primary" style="padding: 0 20px;">Copiar</button>
+                </div>
+
                 <p>Seus amigos podem continuar assistindo por aqui! Diga a eles para digitarem o código abaixo:</p>
                 <div class="room-id" style="font-size: 2.5rem; letter-spacing: 5px; margin: 20px 0; user-select: all;">${currentRoom}</div>
             </div>
         `;
+
+        // Ativa o botão de copiar
+        setTimeout(() => {
+            document.getElementById('btn-copy').addEventListener('click', () => {
+                const input = document.getElementById('copy-url');
+                input.select();
+                document.execCommand('copy');
+                document.getElementById('btn-copy').textContent = 'Copiado!';
+                setTimeout(() => document.getElementById('btn-copy').textContent = 'Copiar', 2000);
+            });
+        }, 100);
     }
 });
 
