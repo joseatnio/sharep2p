@@ -32,9 +32,12 @@
     </div>
 
     <div class="container">
-        <header>
-            <h1>ShareScreen <span class="badge">P2P</span></h1>
-            <p data-i18n="header_desc">Direct peer-to-peer screen sharing.</p>
+        <header style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <h1>ShareScreen <span class="badge">P2P</span></h1>
+                <p data-i18n="header_desc">Direct peer-to-peer screen sharing.</p>
+            </div>
+            <button id="btn-open-lang" class="btn small" style="background: transparent; border: 1px solid var(--border); margin-top: 10px;">🌐 Idioma / Lang</button>
         </header>
 
         <main id="lobby" class="lobby-screen">
@@ -88,7 +91,7 @@
 
     <!-- Socket.io -->
     <script src="/socket.io/socket.io.js"></script>
-    <script src="app.js?v=6"></script>
+    <script src="app.js?v=7"></script>
 </body>
 
 </html>
