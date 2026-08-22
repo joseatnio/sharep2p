@@ -1,3 +1,18 @@
+import { DiscordSDK } from "https://esm.sh/@discord/embedded-app-sdk";
+
+// === DISCORD ACTIVITY SETUP ===
+const DISCORD_CLIENT_ID = '1534236568242360540';
+let discordSdk = null;
+
+async function initDiscord() {
+    if (window.parent !== window) {
+        discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
+        await discordSdk.ready();
+        console.log("Discord SDK is ready!");
+    }
+}
+initDiscord();
+// ==============================
 
 const socket = io('/');
 const peerConnections = {}; // Map socket.id to RTCPeerConnection
@@ -47,6 +62,31 @@ function updateStatus(status, text) {
 // ---- HOST LOGIC ----
 document.getElementById('btn-create-room').addEventListener('click', async () => {
     try {
+        if (!currentRoom) {
+            currentRoom = generateRoomId();
+        }
+
+        // BURLADOR DE RESTRIÇÃO DO DISCORD:
+        // Se estivermos rodando dentro da Activity do Discord, mandamos o usuário pro navegador externo!
+        if (discordSdk) {
+            // Usa o link atual (que o Render gerou) + os parametros pra ele abrir como HOST lá fora
+            const externalUrl = window.location.origin + '/?room=' + currentRoom + '&role=host';
+            await discordSdk.commands.openExternalLink({ url: externalUrl });
+            
+            // Atualiza a tela do Host dentro da Activity para avisar o que houve
+            lobby.innerHTML = `
+                <div class="card" style="text-align: center;">
+                    <h2>Transmissão Enviada pro Navegador! 🚀</h2>
+                    <p style="color: var(--text-secondary); margin-bottom: 20px;">Você foi redirecionado para o Chrome/Edge para conseguir compartilhar a tela sem bloqueios.</p>
+                    <p>Diga para os seus amigos que estão no Discord digitarem o código abaixo para assistirem:</p>
+                    <div class="room-id" style="font-size: 2.5rem; letter-spacing: 5px; margin: 20px 0; user-select: all;">${currentRoom}</div>
+                </div>
+            `;
+            return; // Interrompe aqui, a transmissão vai ocorrer lá no navegador
+        }
+
+        // Se NÃO estiver no Discord (ou seja, ele já está no navegador externo da Opção 1 ou do Pop-out), prossegue normal:
+        
         // Request Screen Share
         localStream = await navigator.mediaDevices.getDisplayMedia({
             video: {
@@ -62,9 +102,6 @@ document.getElementById('btn-create-room').addEventListener('click', async () =>
         });
 
         // UI Updates
-        if (!currentRoom) {
-            currentRoom = generateRoomId();
-        }
         myRole = 'host';
 
         // Show video locally for host
