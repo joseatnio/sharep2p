@@ -99,44 +99,70 @@ function translatePage() {
 
 function showProfileModal() {
     if (!myUsername) {
-        document.getElementById('profile-modal').classList.remove('hidden');
+        const modal = document.getElementById('profile-modal');
+        if (modal) modal.classList.remove('hidden');
     }
 }
 
 // --- INITIALIZATION MODALS ---
 if (!myLanguage) {
-    document.getElementById('language-modal').classList.remove('hidden');
+    const langModal = document.getElementById('language-modal');
+    if (langModal) {
+        langModal.classList.remove('hidden');
+    } else {
+        // Fallback se o HTML antigo ainda estiver no cache
+        console.warn("Language modal not found in HTML. Cache issue?");
+        showProfileModal();
+    }
 } else {
     translatePage();
     showProfileModal();
 }
 
-document.getElementById('btn-lang-pt').addEventListener('click', () => {
-    myLanguage = 'pt-br';
-    localStorage.setItem('lang', myLanguage);
-    document.getElementById('language-modal').classList.add('hidden');
-    translatePage();
-    showProfileModal();
-});
+const btnLangPt = document.getElementById('btn-lang-pt');
+if (btnLangPt) {
+    btnLangPt.addEventListener('click', () => {
+        myLanguage = 'pt-br';
+        localStorage.setItem('lang', myLanguage);
+        document.getElementById('language-modal').classList.add('hidden');
+        translatePage();
+        showProfileModal();
+    });
+}
 
-document.getElementById('btn-lang-en').addEventListener('click', () => {
-    myLanguage = 'en';
-    localStorage.setItem('lang', myLanguage);
-    document.getElementById('language-modal').classList.add('hidden');
-    translatePage();
-    showProfileModal();
-});
+const btnLangEn = document.getElementById('btn-lang-en');
+if (btnLangEn) {
+    btnLangEn.addEventListener('click', () => {
+        myLanguage = 'en';
+        localStorage.setItem('lang', myLanguage);
+        document.getElementById('language-modal').classList.add('hidden');
+        translatePage();
+        showProfileModal();
+    });
+}
 
-document.getElementById('btn-save-profile').addEventListener('click', () => {
-    const input = document.getElementById('input-nickname').value.trim();
-    if (input) {
-        myUsername = input;
-        localStorage.setItem('username', myUsername);
-        document.getElementById('profile-modal').classList.add('hidden');
-    } else {
-        alert(t('alert_nickname'));
-    }
-});
+const btnSaveProfile = document.getElementById('btn-save-profile');
+if (btnSaveProfile) {
+    btnSaveProfile.addEventListener('click', () => {
+        const input = document.getElementById('input-nickname');
+        const val = input ? input.value.trim() : '';
+        if (val) {
+            myUsername = val;
+            localStorage.setItem('username', myUsername);
+            document.getElementById('profile-modal').classList.add('hidden');
+        } else {
+            alert(t('alert_nickname'));
+        }
+    });
+}
+
+const btnOpenLang = document.getElementById('btn-open-lang');
+if (btnOpenLang) {
+    btnOpenLang.addEventListener('click', () => {
+        const langModal = document.getElementById('language-modal');
+        if (langModal) langModal.classList.remove('hidden');
+    });
+}
 
 // STUN/TURN servers to resolve public IPs and relay traffic across strict NATs
 const rtcConfig = {
