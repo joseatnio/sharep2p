@@ -18,7 +18,8 @@ async function initDiscord() {
 initDiscord();
 // ==============================
 
-const socket = io('/');
+// Força WebSockets para evitar problemas com o proxy do Discord que bloqueia long-polling
+const socket = io('/', { transports: ['websocket'] });
 const peerConnections = {}; // Map socket.id to RTCPeerConnection
 let localStream;
 let myRole = null; // 'host' or 'viewer'
