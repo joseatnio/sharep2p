@@ -1,0 +1,60 @@
+const express = require('express');
+const app = express();
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
+const path = require('path');
+
+const PORT = process.env.PORT || 3000;
+
+// Security headers required by Discord Embedded App SDK
+app.use((req, res, next) => {
+    res.setHeader('Content-Security-Policy', "frame-ancestors https://discord.com https://*.discord.com");
+    next();
+});
+
+// Serve static files from the 'public' directory
+app.use(express.static(path.join(__dirname, 'public')));
+
+io.on('connection', (socket) => {
+    console.log('A user connected:', socket.id);
+
+    socket.on('join-room', (roomId, role) => {
+        socket.join(roomId);
+        console.log(`Socket ${socket.id} joined room ${roomId} as ${role}`);
+
+        if (role === 'viewer') {
+            // Notify the host that a viewer wants to connect
+            socket.to(roomId).emit('viewer-joined', socket.id);
+        }
+
+        socket.on('disconnect', () => {
+            console.log('User disconnected:', socket.id);
+            socket.to(roomId).emit('user-disconnected', socket.id);
+        });
+    });
+
+    // WebRTC Signaling Events
+    socket.on('offer', (roomId, offer, targetId) => {
+        // Send the offer to the specific viewer
+        socket.to(targetId).emit('offer', offer, socket.id);
+    });
+
+    socket.on('answer', (roomId, answer, targetId) => {
+        // Send the answer back to the host
+        socket.to(targetId).emit('answer', answer, socket.id);
+    });
+
+    socket.on('ice-candidate', (roomId, candidate, targetId) => {
+        if (targetId) {
+             socket.to(targetId).emit('ice-candidate', candidate, socket.id);
+        } else {
+             socket.to(roomId).emit('ice-candidate', candidate, socket.id);
+        }
+    });
+});
+
+http.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+});
+
+require('./bot.js');
