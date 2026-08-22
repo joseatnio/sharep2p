@@ -22,10 +22,8 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         console.log(`Socket ${socket.id} joined room ${roomId} as ${role}`);
 
-        if (role === 'viewer') {
-            // Notify the host that a viewer wants to connect
-            socket.to(roomId).emit('viewer-joined', socket.id);
-        }
+        // Notify everyone else in the room that a new user arrived
+        socket.to(roomId).emit('user-joined', socket.id, role);
 
         socket.on('disconnect', () => {
             console.log('User disconnected:', socket.id);
@@ -34,9 +32,9 @@ io.on('connection', (socket) => {
     });
 
     // WebRTC Signaling Events
-    socket.on('offer', (roomId, offer, targetId) => {
+    socket.on('offer', (roomId, offer, targetId, senderRole) => {
         // Send the offer to the specific viewer
-        socket.to(targetId).emit('offer', offer, socket.id);
+        socket.to(targetId).emit('offer', offer, socket.id, senderRole);
     });
 
     socket.on('answer', (roomId, answer, targetId) => {
