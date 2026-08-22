@@ -10,62 +10,73 @@
 </head>
 
 <body>
+    <!-- LANGUAGE MODAL -->
+    <div id="language-modal" class="modal-overlay hidden">
+        <div class="card modal-card" style="text-align: center;">
+            <h2>Select Language / Selecione o Idioma</h2>
+            <div style="display: flex; gap: 1rem; justify-content: center; margin-top: 1.5rem;">
+                <button id="btn-lang-pt" class="btn secondary" style="font-size: 2rem; padding: 1rem 2rem;">🇧🇷</button>
+                <button id="btn-lang-en" class="btn secondary" style="font-size: 2rem; padding: 1rem 2rem;">🇺🇸</button>
+            </div>
+        </div>
+    </div>
+
     <!-- PROFILE MODAL -->
     <div id="profile-modal" class="modal-overlay hidden">
         <div class="card modal-card">
-            <h2>Welcome to ShareScreen</h2>
-            <p>Please enter a nickname to join calls.</p>
-            <input type="text" id="input-nickname" placeholder="Your Nickname (e.g. John)" autocomplete="off">
-            <button id="btn-save-profile" class="btn primary">Save & Continue</button>
+            <h2 data-i18n="profile_title">Welcome to ShareScreen</h2>
+            <p data-i18n="profile_desc">Please enter a nickname to join calls.</p>
+            <input type="text" id="input-nickname" data-i18n="profile_placeholder" placeholder="Your Nickname (e.g. John)" autocomplete="off">
+            <button id="btn-save-profile" class="btn primary" data-i18n="profile_btn">Save & Continue</button>
         </div>
     </div>
 
     <div class="container">
         <header>
-            <h1>ShareScreen<span class="badge">P2P</span></h1>
-            <p>Direct peer-to-peer screen sharing.</p>
+            <h1>ShareScreen <span class="badge">P2P</span></h1>
+            <p data-i18n="header_desc">Direct peer-to-peer screen sharing.</p>
         </header>
 
         <main id="lobby" class="lobby-screen">
             <div class="card create-card">
-                <h2>Share your Screen</h2>
-                <p>Create a secure room to broadcast your screen to friends.</p>
-                <button id="btn-create-room" class="btn primary">Start Sharing</button>
+                <h2 data-i18n="create_title">Share your Screen</h2>
+                <p data-i18n="create_desc">Create a secure room to broadcast your screen to friends.</p>
+                <button id="btn-create-room" class="btn primary" data-i18n="create_btn">Start Sharing</button>
             </div>
 
             <div class="card join-card">
-                <h2>Watch a Screen</h2>
-                <p>Join an existing room using a Room ID.</p>
-                <input type="text" id="input-room-id" placeholder="Enter Room ID" autocomplete="off">
-                <button id="btn-join-room" class="btn secondary">Join Room</button>
+                <h2 data-i18n="join_title">Watch a Screen</h2>
+                <p data-i18n="join_desc">Join an existing room using a Room ID.</p>
+                <input type="text" id="input-room-id" data-i18n="join_placeholder" placeholder="Enter Room ID" autocomplete="off">
+                <button id="btn-join-room" class="btn secondary" data-i18n="join_btn">Join Room</button>
             </div>
         </main>
 
         <section id="streaming-area" class="streaming-area hidden">
             <div class="video-header">
                 <div class="status-indicator">
-                    <span class="dot"></span> <span id="connection-status">Connecting...</span>
+                    <span class="dot"></span> <span id="connection-status" data-i18n="status_connecting">Connecting...</span>
                 </div>
                 <div id="active-room-info" class="copy-box hidden">
                     <code id="header-room-id">...</code>
-                    <button id="btn-copy" class="btn small">Copy</button>
+                    <button id="btn-copy" class="btn small" data-i18n="btn_copy">Copy</button>
                 </div>
                 <div style="display: flex; gap: 0.5rem;">
-                    <button id="btn-toggle-mic" class="btn primary small hidden">Mutar</button>
-                    <button id="btn-change-screen" class="btn primary small hidden">Change Screen</button>
-                    <button id="btn-fullscreen" class="btn secondary small">Fullscreen</button>
-                    <button id="btn-leave" class="btn danger small">Voltar</button>
+                    <button id="btn-toggle-mic" class="btn primary small hidden" data-i18n="btn_mute">Mutar</button>
+                    <button id="btn-change-screen" class="btn primary small hidden" data-i18n="btn_change_screen">Change Screen</button>
+                    <button id="btn-fullscreen" class="btn secondary small" data-i18n="btn_fullscreen">Fullscreen</button>
+                    <button id="btn-leave" class="btn danger small" data-i18n="btn_leave">Voltar</button>
                 </div>
             </div>
 
             <div class="video-container">
                 <video id="screen-video" autoplay playsinline></video>
-                <div class="placeholder-text" id="video-placeholder">Waiting for stream...</div>
+                <div class="placeholder-text" id="video-placeholder" data-i18n="video_waiting">Waiting for stream...</div>
 
                 <!-- PARTICIPANTS SIDEBAR -->
                 <div class="participants-sidebar">
                     <div class="participants-header">
-                        <h3>Participantes (<span id="participant-count">0</span>)</h3>
+                        <h3 data-i18n="participants_title">Participantes (<span id="participant-count">0</span>)</h3>
                     </div>
                     <ul id="participants-list" class="participants-list">
                         <!-- Users will be appended here -->
